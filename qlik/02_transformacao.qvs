@@ -1,0 +1,210 @@
+///$tab Main
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='R$ ###0.00;-R$ ###0.00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='pt-BR';
+SET CreateSearchIndexOnReload=1;
+SET MonthNames='jan;fev;mar;abr;mai;jun;jul;ago;set;out;nov;dez';
+SET LongMonthNames='janeiro;fevereiro;março;abril;maio;junho;julho;agosto;setembro;outubro;novembro;dezembro';
+SET DayNames='seg;ter;qua;qui;sex;sáb;dom';
+SET LongDayNames='segunda-feira;terça-feira;quarta-feira;quinta-feira;sexta-feira;sábado;domingo';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+///$tab Parâmetros
+SET vQvdExtracao = 'lib://Cursos e testes:DataFiles/extracao/Extracao_Especime.qvd';
+SET vPastaCarga  = 'lib://Cursos e testes:DataFiles/carga/especime';
+
+///$tab Funções
+// Funções reutilizáveis (variáveis com parâmetro $1)
+// Texto vazio vira 'Não informado'
+SET vTexto    = If(Len(Trim($1)) = 0, 'Não informado', Trim($1));
+// O CSV do IBAMA usa PONTO como separador decimal (ex.: 170010.0)
+SET vNumero   = Num#(Trim($1), '', '.', ',');
+// Datas do CSV vêm como AAAA-MM-DD hh:mm:ss
+SET vDataHora = Timestamp(Timestamp#(Trim($1), 'YYYY-MM-DD hh:mm:ss'), 'DD/MM/YYYY hh:mm:ss');
+
+///$tab Mapas
+// Tabelas de padronização: valor original (minúsculo) -> valor padronizado
+Map_Condicao:
+MAPPING LOAD * INLINE [
+de, para
+vivo, Vivo
+viva, Vivo
+morto, Morto
+morta, Morto
+];
+
+Map_SimNao:
+MAPPING LOAD * INLINE [
+de, para
+s, Sim
+n, Não
+];
+
+Map_Unidade:
+MAPPING LOAD * INLINE [
+de, para
+m³, m³
+unidade, Unidade
+];
+
+///$tab Temp_Especime
+Temp_Especime:
+// 2º passo (preceding load): chaves e campos calculados a partir dos campos já tratados
+LOAD
+    *,
+    Hash128([Nome Científico], [Nome Popular], [Grupo], [Tipo de Infração], [Ameaçada (CITES)]) AS [%EspecieKey],
+    Hash128([Seq. Auto], [Nº do Auto], [Série do Auto])                                         AS [%AutoKey],
+    If([Data/Hora Alteração] <= Now(1), Date(Floor([Data/Hora Alteração]), 'DD/MM/YYYY'))       AS [Data Alteração],
+    If(IsNull([Data/Hora Alteração]), 'Sem data',
+       If([Data/Hora Alteração] > Now(1), 'Data futura (inválida)', 'Válida'))                   AS [Qualidade da Data];
+
+// 1º passo: conversão de tipos e padronização dos textos
+LOAD
+    // Identificação: cada sistema tem a sua chave do espécime
+    If(Len(Trim(SEQ_ESPECIME)) > 0, 'Sicafi/Sifisc', 'Sabiá/Aiemob')                            AS [Sistema de Origem],
+    If(Len(Trim(SEQ_ESPECIME)) > 0, 'SICAFI-' & Trim(SEQ_ESPECIME), 'SABIA-' & Trim(CD_ESPECIME)) AS [ID Espécime],
+
+    // Auto de infração
+    Trim(SEQ_AUTO_INFRACAO)                                                     AS [Seq. Auto],
+    Upper(Trim(NUM_AUTO_INFRACAO))                                              AS [Nº do Auto],
+    Upper(Trim(CD_SERIE_AUTO_INFRACAO))                                         AS [Série do Auto],
+
+    // Espécie
+    $(vTexto(NOME_CIENTIFICO))                                                  AS [Nome Científico],
+    $(vTexto(NOME_POPULAR))                                                     AS [Nome Popular],
+    $(vTexto(GRUPO))                                                            AS [Grupo],
+    $(vTexto(TIPO))                                                             AS [Tipo de Infração],
+    ApplyMap('Map_SimNao', Lower(Trim(CITES)), 'Não informado')                 AS [Ameaçada (CITES)],
+
+    // Medidas e atributos do espécime
+    $(vNumero(QUANTIDADE))                                                      AS [#Quantidade],
+    ApplyMap('Map_Unidade', Lower(Trim(UNIDADE_MEDIDA)), $(vTexto(UNIDADE_MEDIDA))) AS [Unidade de Medida],
+    $(vTexto(DESCRICAO))                                                        AS [Forma Encontrada],
+    ApplyMap('Map_Condicao', Lower(Trim(CARACTERISTICA)),
+             If(Len(Trim(CARACTERISTICA)) = 0, 'Não informado', 'Outro (texto livre)')) AS [Condição],
+    $(vTexto(CARACTERISTICA))                                                   AS [Característica (original)],
+    ApplyMap('Map_SimNao', Lower(Trim(ST_PERECIVEL)), 'Não informado')          AS [Perecível],
+    $(vTexto(SITUACAO))                                                         AS [Situação],
+    $(vNumero(NU_VALOR))                                                        AS [#Valor Atribuído],
+
+    // Datas
+    $(vDataHora(DAT_ALTERACAO))                                                 AS [Data/Hora Alteração],
+    $(vDataHora(ULTIMA_ATUALIZACAO_RELATORIO))                                  AS [Atualização da Fonte],
+    DT_EXTRACAO                                                                 AS [Data da Extração],
+
+    // Valores crus, só para a checagem de qualidade (removidos depois)
+    QUANTIDADE                                                                  AS [_qtd],
+    NU_VALOR                                                                    AS [_valor],
+    DAT_ALTERACAO                                                               AS [_data]
+FROM [$(vQvdExtracao)] (qvd);
+
+///$tab Qualidade
+// Quantos valores existiam na fonte e NÃO foram convertidos (o esperado é 0)
+Checagem:
+LOAD
+    Count([ID Espécime])                                                    AS Linhas,
+    Count(DISTINCT [ID Espécime])                                           AS IdsDistintos,
+    Sum(If(Len(Trim([_qtd]))   > 0 AND IsNull([#Quantidade]), 1, 0))        AS ErroQuantidade,
+    Sum(If(Len(Trim([_valor])) > 0 AND IsNull([#Valor Atribuído]), 1, 0))   AS ErroValor,
+    Sum(If(Len(Trim([_data]))  > 0 AND IsNull([Data/Hora Alteração]), 1, 0)) AS ErroData,
+    Sum(If([Qualidade da Data] = 'Data futura (inválida)', 1, 0))           AS DatasFuturas
+RESIDENT Temp_Especime;
+
+LET vLinhas         = Peek('Linhas',         0, 'Checagem');
+LET vIdsDistintos   = Peek('IdsDistintos',   0, 'Checagem');
+LET vErroQuantidade = Peek('ErroQuantidade', 0, 'Checagem');
+LET vErroValor      = Peek('ErroValor',      0, 'Checagem');
+LET vErroData       = Peek('ErroData',       0, 'Checagem');
+LET vDatasFuturas   = Peek('DatasFuturas',   0, 'Checagem');
+
+TRACE Linhas: $(vLinhas) · IDs distintos: $(vIdsDistintos) (devem ser iguais);
+TRACE Falhas de conversão -> quantidade: $(vErroQuantidade) · valor: $(vErroValor) · data: $(vErroData);
+TRACE Datas futuras descartadas: $(vDatasFuturas);
+
+DROP TABLE Checagem;
+DROP FIELDS [_qtd], [_valor], [_data] FROM Temp_Especime;
+
+///$tab Dim_Especie
+Dim_Especie:
+LOAD DISTINCT
+    [%EspecieKey],
+    [Nome Científico],
+    [Nome Popular],
+    [Grupo],
+    [Tipo de Infração],
+    [Ameaçada (CITES)]
+RESIDENT Temp_Especime;
+
+///$tab Dim_Auto
+// Até 07/10/2019 (Sicafi) o auto tem número + série; a partir de 08/10/2019 (AIe) é alfanumérico, sem série
+Dim_Auto:
+LOAD DISTINCT
+    [%AutoKey],
+    [Seq. Auto],
+    [Nº do Auto],
+    If(Len([Série do Auto]) = 0, 'Sem série', [Série do Auto])                          AS [Série do Auto],
+    If(Len([Série do Auto]) > 0, 'Sicafi (até 07/10/2019)', 'AIe (a partir de 08/10/2019)') AS [Padrão do Auto]
+RESIDENT Temp_Especime;
+
+///$tab Fato_Especime
+Fato_Especime:
+LOAD
+    [ID Espécime],
+    [%EspecieKey],
+    [%AutoKey],
+    [Data Alteração],
+    [Qualidade da Data],
+    [Sistema de Origem],
+    [#Quantidade],
+    [Unidade de Medida],
+    [Forma Encontrada],
+    [Condição],
+    [Característica (original)],
+    [Perecível],
+    [Situação],
+    [#Valor Atribuído]
+RESIDENT Temp_Especime;
+
+///$tab Dim_Calendario
+Dim_Calendario:
+LOAD DISTINCT
+    [Data Alteração],
+    Year([Data Alteração])                                          AS Ano,
+    Month([Data Alteração])                                         AS Mês,
+    Dual('T' & Ceil(Month([Data Alteração]) / 3), Ceil(Month([Data Alteração]) / 3)) AS Trimestre,
+    Date(MonthStart([Data Alteração]), 'MMM/YYYY')                  AS [Mês/Ano]
+RESIDENT Fato_Especime
+WHERE NOT IsNull([Data Alteração]);
+
+///$tab Info_Fonte
+// Tabela de 1 linha (sem ligação) para mostrar no painel de quando são os dados
+Info_Fonte:
+FIRST 1
+LOAD
+    [Atualização da Fonte],
+    [Data da Extração]
+RESIDENT Temp_Especime;
+
+DROP TABLE Temp_Especime;
+
+///$tab STORE
+STORE Fato_Especime  INTO [$(vPastaCarga)/Fato_Especime.qvd]  (qvd);
+STORE Dim_Especie    INTO [$(vPastaCarga)/Dim_Especie.qvd]    (qvd);
+STORE Dim_Auto       INTO [$(vPastaCarga)/Dim_Auto.qvd]       (qvd);
+STORE Dim_Calendario INTO [$(vPastaCarga)/Dim_Calendario.qvd] (qvd);
+STORE Info_Fonte     INTO [$(vPastaCarga)/Info_Fonte.qvd]     (qvd);
+
+LET vLinhas = NoOfRows('Fato_Especime');   TRACE Fato_Especime: $(vLinhas);
+LET vLinhas = NoOfRows('Dim_Especie');     TRACE Dim_Especie: $(vLinhas);
+LET vLinhas = NoOfRows('Dim_Auto');        TRACE Dim_Auto: $(vLinhas);
+LET vLinhas = NoOfRows('Dim_Calendario');  TRACE Dim_Calendario: $(vLinhas);

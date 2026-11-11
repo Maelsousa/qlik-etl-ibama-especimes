@@ -1,0 +1,11 @@
+# Dados não são versionados (baixe da fonte oficial)
+*.csv
+*.qvd
+*.qvf
+*.xlsx
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/

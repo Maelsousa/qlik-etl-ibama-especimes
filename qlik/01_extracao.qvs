@@ -1,0 +1,59 @@
+///$tab Main
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='R$ ###0.00;-R$ ###0.00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='pt-BR';
+SET CreateSearchIndexOnReload=1;
+SET MonthNames='jan;fev;mar;abr;mai;jun;jul;ago;set;out;nov;dez';
+SET LongMonthNames='janeiro;fevereiro;março;abril;maio;junho;julho;agosto;setembro;outubro;novembro;dezembro';
+SET DayNames='seg;ter;qua;qui;sex;sáb;dom';
+SET LongDayNames='segunda-feira;terça-feira;quarta-feira;quinta-feira;sexta-feira;sábado;domingo';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+///$tab Parâmetros
+// Arquivo baixado do portal de dados abertos do IBAMA (espécimes dos autos de infração)
+SET vArquivoFonte = 'lib://Cursos e testes:DataFiles/especime.csv';
+SET vQvdExtracao  = 'lib://Cursos e testes:DataFiles/extracao/Extracao_Especime.qvd';
+
+///$tab Extração
+Especime:
+LOAD
+    Text(SEQ_AUTO_INFRACAO)               AS SEQ_AUTO_INFRACAO,
+    Text(NUM_AUTO_INFRACAO)               AS NUM_AUTO_INFRACAO,
+    Text(CD_SERIE_AUTO_INFRACAO)          AS CD_SERIE_AUTO_INFRACAO,
+    Text(SEQ_TAXONOMIA)                   AS SEQ_TAXONOMIA,
+    Text(SEQ_ESPECIME)                    AS SEQ_ESPECIME,
+    Text(CD_ESPECIME)                     AS CD_ESPECIME,
+    Text(QUANTIDADE)                      AS QUANTIDADE,
+    Text(UNIDADE_MEDIDA)                  AS UNIDADE_MEDIDA,
+    Text(DESCRICAO)                       AS DESCRICAO,
+    Text(CARACTERISTICA)                  AS CARACTERISTICA,
+    Text(ST_PERECIVEL)                    AS ST_PERECIVEL,
+    Text(TIPO)                            AS TIPO,
+    Text(GRUPO)                           AS GRUPO,
+    Text(NOME_CIENTIFICO)                 AS NOME_CIENTIFICO,
+    Text(NOME_POPULAR)                    AS NOME_POPULAR,
+    Text(CITES)                           AS CITES,
+    Text(SITUACAO)                        AS SITUACAO,
+    Text(DAT_ALTERACAO)                   AS DAT_ALTERACAO,
+    Text(NU_VALOR)                        AS NU_VALOR,
+    Text(ULTIMA_ATUALIZACAO_RELATORIO)    AS ULTIMA_ATUALIZACAO_RELATORIO,
+    Now(1)                                AS DT_EXTRACAO
+FROM [$(vArquivoFonte)]
+(txt, utf8, embedded labels, delimiter is ';', msq);
+
+
+    STORE Especime INTO [$(vQvdExtracao)] (qvd);
+    TRACE QVD gravado: $(vQvdExtracao);
+
+
+DROP TABLE Especime;
