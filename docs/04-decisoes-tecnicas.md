@@ -46,3 +46,8 @@ Cada decisão segue o formato: **contexto → decisão → consequências**.
 ## ADR-009 · Títulos em forma de pergunta e conclusões dinâmicas
 **Decisão.** Cada gráfico tem como título a pergunta que responde. O subtítulo é uma expressão que escreve a conclusão (ex.: `'Pico em ' & FirstSortedValue(Ano, -Aggr(Count([ID Espécime]), Ano)) & …`).
 **Consequências.** O painel pode ser lido sem treinamento, e as frases continuam corretas quando o usuário filtra.
+
+## ADR-010 · Pastas com tamanho fixo (1500 × 860 px)
+**Contexto.** Em telas de notebook (≈1.536 × 640 px úteis), o modo responsivo espremia os 10 objetos da Visão Geral, e o Qlik escondia rótulos e eixos dos gráficos menores.
+**Decisão.** `layoutOptions.sheetMode = 'CUSTOM'`, com 1500 × 860 px nas três pastas: a largura cabe sem rolagem horizontal e a altura extra ganha rolagem vertical.
+**Consequências.** Todos os gráficos mostram rótulos e eixos. Em monitores grandes, a pasta não ocupa a largura toda.

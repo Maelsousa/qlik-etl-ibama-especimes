@@ -4,7 +4,7 @@ Pipeline de dados de ponta a ponta (**extração → transformação → dashboa
 
 O projeto cobre todo o ciclo de um trabalho de BI: perfilamento da fonte, desenho do modelo, ETL em camadas, validação contra a fonte, um painel fácil de ler e a documentação das decisões e dos problemas de qualidade encontrados nos dados.
 
-![Visão geral do painel](img/01-visao-geral.png)
+![Visão geral do painel](img/01-visao-geral.jpg)
 
 ---
 
@@ -128,7 +128,7 @@ Princípios de design aplicados:
 
 | | |
 |---|---|
-| ![Espécies](img/02-especies.png) | ![Detalhe](img/03-detalhe.png) |
+| ![Espécies](img/02-especies.jpg) | ![Detalhe](img/03-detalhe.jpg) |
 
 Fórmulas das medidas e decisões visuais em [docs/05-painel-e-medidas.md](docs/05-painel-e-medidas.md).
 

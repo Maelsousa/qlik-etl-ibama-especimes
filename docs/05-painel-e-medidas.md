@@ -60,6 +60,7 @@ Rodapé que informa o que foi excluído do gráfico:
 - **Fundo:** imagem PNG por pasta (degradê azul-marinho `#0E2338` → `#1B4468`, ícone de folha, título e subtítulo), na biblioteca de mídia do app e esticada para a pasta.
 - **Paleta:** azul `#4477AA` (a mesma dos KPIs), azul-escuro `#2C4F73` e terracota `#C0623B` para o tema CITES.
 - **Tipografia:** títulos de 15px em negrito `#1F2A36`; eixos e rodapés em `#6B7785`.
+- **Tamanho da pasta:** fixo em 1500 × 860 px (ver ADR-010), com rolagem vertical.
 - **Regras:** nada de "Não informado" nos rankings; quantidades nunca somadas entre unidades; fonte e data dos dados no rodapé.
 
 ## Lições do desenvolvimento visual
